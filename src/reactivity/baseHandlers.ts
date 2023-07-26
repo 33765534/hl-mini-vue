@@ -1,8 +1,8 @@
-import { isObject } from "../shared"
+import { extend, isObject } from "../shared"
 import { track, trigger } from "./effect"
-import { ReactiveFlags, reactive } from "./reactive"
+import { ReactiveFlags, reactive, readonly, shallowReadonly } from "./reactive"
 
-function createGetter(isReadonly = false) {
+function createGetter(isReadonly = false, shallow = false) {
     return function get(target, key) {
         const res = Reflect.get(target, key)
 
@@ -11,8 +11,12 @@ function createGetter(isReadonly = false) {
         } else if (key === ReactiveFlags.IS_READONLY) {
             return isReadonly
         }
+
+        if (shallow) return res
+
+        // 实现 reactive 和 readonly 嵌套对象转换功能
         if (isObject(res)) {
-            return reactive(res)
+            return isReadonly ? readonly(res) : reactive(res)
         }
 
         if (!isReadonly) {
@@ -33,6 +37,7 @@ function createSetter() {
 const get = createGetter()
 const set = createSetter()
 const readonlyGet = createGetter(true)
+const shallowReadonlyGet = createGetter(true, true)
 export const mutableHandlers = {
     get,
     set
@@ -45,3 +50,8 @@ export const readonlyHandlers = {
         return true
     }
 }
+
+export const shallowReadonlyHandlers = extend({}, readonlyHandlers, {
+    get: shallowReadonlyGet
+}
+)

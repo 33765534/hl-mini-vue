@@ -2,12 +2,13 @@ import { extend } from "../shared";
 
 let activeEffect;
 let shouldTrack;
-class ReactiveEffect {
+export class ReactiveEffect {
     private _fn;
     deps = [];
     // 当清空过一次之后把active设置成false，这样就可以确保每次只删除一次
     active = true
     onStop?: () => void;
+    // 一开始时 scheduler不会被调用
     public scheduler: Function | undefined
     constructor(fn, scheduler?: Function) {
         this._fn = fn
@@ -50,9 +51,8 @@ function cleanupEffect(effect) {
 }
 
 const targetMap = new Map()
+// 收集依赖
 export function track(target, key) {
-    if (!isTracking()) return;
-
     let depsMap = targetMap.get(target);
     if (!depsMap) {
         depsMap = new Map()
@@ -65,18 +65,29 @@ export function track(target, key) {
         depsMap.set(key, dep)
     }
 
+    trackEffects(dep);
+}
+
+export function trackEffects(dep) {
+    if (!isTracking()) return;
+
     dep.add(activeEffect);
     // activeEffect存放dep 便于删除时操作
     activeEffect.deps.push(dep);
 }
 
-function isTracking() {
+// 判断shouldTrack 或者 activeEffect存在
+export function isTracking() {
     return shouldTrack && activeEffect !== undefined
 }
 
+// 触发依赖
 export function trigger(target, key) {
     let depsMap = targetMap.get(target);
     let dep = depsMap.get(key);
+    triggerEffects(dep)
+}
+export function triggerEffects(dep) {
     dep.forEach(element => {
         if (element.scheduler) {
             element.scheduler()
