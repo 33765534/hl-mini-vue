@@ -1,20 +1,32 @@
+import { shallowReadonly } from "../reactivity/reactive";
+import { emit } from "./componentEmit";
+import { initProps } from "./componentProps";
 import { PublicInstanceProxyHandlers } from "./componentPublicInstance";
+import { initSlots } from "./componentSlots";
 
 // mountComponent 函数首先先通过虚拟节点创建一个组件实例对象 instance,因为组件本身有很多属性，所以可以抽离出一个组件实例instance
-export function createComponentInstance(vnode) {
+export function createComponentInstance(vnode, parent) {
     const component = {
         vnode,
         // 本来type应该在虚拟节点内，为了方便可以在创建组件的时候创建个type
         type: vnode.type,
         setupState: {},
-        el: null
+        props: {},
+        el: null,
+        emit: () => { },
+        provides: parent ? parent.provides : {},
+        parent,
+        slots: {}
     }
+
+    component.emit = emit.bind(null, component) as any
     return component
 }
 
 // setupStatefulComponent(instance)处理调用setup并且拿到setup的返回值
 export function setupComponent(instance) {
-
+    initProps(instance, instance.vnode.props)
+    initSlots(instance, instance.vnode.children)
     setupStatefulComponent(instance)
 }
 
@@ -28,8 +40,12 @@ function setupStatefulComponent(instance) {
     const { setup } = Component
 
     if (setup) {
+        setCurrentInstance(instance)
         // 拿到result可以返回function或object
-        const setupResult = setup();
+        const setupResult = setup(shallowReadonly(instance.props), {
+            emit: instance.emit
+        });
+        setCurrentInstance(null)
         handleSetupResult(instance, setupResult)
     }
 }
@@ -51,4 +67,12 @@ function finishComponentSetup(instance) {
         // 赋值到组件实例上
         instance.render = Component.render
     }
+}
+
+let currentInstance = null
+export function getCurrentInstance() {
+    return currentInstance
+}
+export function setCurrentInstance(instance) {
+    currentInstance = instance
 }
