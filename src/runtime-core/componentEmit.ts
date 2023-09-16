@@ -1,5 +1,5 @@
 export const emit = (instance, event, ...args) => {
-    debugger
+    
     const { props } = instance;
 
     // 烤肉串的方式
