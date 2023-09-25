@@ -4,7 +4,9 @@ import { effect } from "../reactivity/effect"
 import { EMPTY_OBJ, isObject } from "../shared"
 import { ShapeFlags } from "./ShapeFlags"
 import { createComponentInstance, setupComponent } from "./component"
+import { shouldUpdateComponent } from "./componentUpdateUtils"
 import { createAppAPI } from "./createApp"
+import { queueJobs } from "./scheduler"
 import { Fragment, Text } from "./vnode"
 
 export function createRenderer(options) {
@@ -362,12 +364,28 @@ export function createRenderer(options) {
     }
 
     function processComponent(n1, n2, container, parentComponent, anchor) {
-        mountComponent(n2, container, parentComponent, anchor)
+        if (!n1) {
+            mountComponent(n2, container, parentComponent, anchor)
+        } else {
+            updateComponent(n1, n2)
+        }
+
     }
 
+    function updateComponent(n1, n2) {
+        const instance = (n2.component = n1.component)
+        if (shouldUpdateComponent(n1, n2)) {
+            instance.next = n2 //获取到新的vnode初始化的时候也加上 next  代表下次要更新的时候的虚拟节点
+            instance.update();
+        } else {
+            n2.el = n1.el
+            instance.vnode = n2
+        }
+
+    }
     // mountComponent 函数首先先通过虚拟节点创建一个组件实例对象 instance,因为组件本身有很多属性，所以可以抽离出一个组件实例instance
     function mountComponent(initialVNode, container, parentComponent, anchor) {
-        const instance = createComponentInstance(initialVNode, parentComponent)
+        const instance = (initialVNode.component = createComponentInstance(initialVNode, parentComponent))
 
         // setupComponent(instance)去处理 props、slots、以及调用setup返回的一些值
         setupComponent(instance);
@@ -377,7 +395,7 @@ export function createRenderer(options) {
 
     // setupRenderEffect(instance) 函数，调用render函数得到虚拟节点tree
     function setupRenderEffect(instance, initialVNode, container, anchor) {
-        effect(() => {
+        instance.update = effect(() => {
             if (!instance.isMounted) {
                 const { proxy } = instance
                 // 绑定一下代理对象 当我们调用render的时候 把我们的代理对象绑定到 render函数的this上
@@ -396,6 +414,13 @@ export function createRenderer(options) {
                 initialVNode.el = subTree.el
                 instance.isMounted = true
             } else {
+                const { next, vnode } = instance
+                if (next) {
+                    // next更新的vnode 如果存在就走
+                    next.el = vnode.el
+                    updateComponentPreRender(instance, next)
+                }
+
                 const { proxy } = instance
                 const subTree = instance.render.call(proxy)
                 const prevSubTree = instance.subTree
@@ -405,7 +430,19 @@ export function createRenderer(options) {
                 patch(prevSubTree, subTree, container, instance, anchor)
             }
 
+        }, {
+            scheduler() {
+                // 收集job
+                queueJobs(instance.update)
+            }
         })
+    }
+
+    function updateComponentPreRender(instance, nextVNode) {
+        // 更新 props
+        instance.vnode = nextVNode
+        instance.next = null
+        instance.props = nextVNode.props
     }
 
     return {
