@@ -8,34 +8,73 @@ const enum TagType {
 export function baseParse(content: string) {
     const context = createParserContext(content)
 
-    return createRoot(parseChildren(context))
+    return createRoot(parseChildren(context, []))
 }
 
-function parseChildren(context) {
+function parseChildren(context, ancestors) {
     const nodes: any = [];
-    let node;
-    const s = context.source;
-    // startsWith() 方法用于检测字符串是否以指定的子字符串开始
-    if (s.startsWith("{{")) {
-        // parseChildren中 调用parseInterpolation创建node节点 然后push到nodes中并返回
-        node = parseInterpolation(context);
-    } else if (s[0] === "<") {
-        // 判断字符串的第一个是不是<  再判断字符串第二个是不是a-z的字母正则/i 不区分大小写，如果是就是element类型
-        if (/[a-z]/i.test(s[1])) {
-            node = parseElement(context)
+    while (!isEnd(context, ancestors)) {
+        let node;
+        const s = context.source;
+        // startsWith() 方法用于检测字符串是否以指定的子字符串开始
+        if (s.startsWith("{{")) {
+            // parseChildren中 调用parseInterpolation创建node节点 然后push到nodes中并返回
+            node = parseInterpolation(context);
+        } else if (s[0] === "<") {
+            // 判断字符串的第一个是不是<  再判断字符串第二个是不是a-z的字母正则/i 不区分大小写，如果是就是element类型
+            if (/[a-z]/i.test(s[1])) {
+                node = parseElement(context, ancestors)
+            }
         }
-    }
 
-    if (!node) {
-        node = parseText(context)
-    }
+        if (!node) {
+            node = parseText(context)
+        }
 
-    nodes.push(node);
+        nodes.push(node);
+
+    }
     return nodes;
 }
 
+function startsWithEndTagOpen(source, tag) {
+    return source.startsWith("</") && source.slice(2, 2 + tag.length).toLowerCase() === tag.toLowerCase();
+}
+
+function isEnd(context, ancestors) {
+
+    // 2.遇见结束标签的时候 停止循环
+    const s = context.source;
+
+    // 当遇到结束标签 </ 的时候，看看之前有没有开始标签，如果有就直接结束了，没有就报异常
+    if (s.startsWith('</')) {
+        for (let i = ancestors.length - 1; i >= 0; i--) {
+            const tag = ancestors[i].tag;
+            if (startsWithEndTagOpen(s, tag)) {
+                return true
+            }
+        }
+    }
+    // if (s.startsWith(`</${parentTag}>`)) {
+    //     return true
+    // }
+
+    // 1.当 source 有值的情况下就一直循环
+    return !s;
+}
+
 function parseText(context) {
-    const content = parseTextData(context, context.source.length);
+    let endIndex = context.source.length;
+    let endTokens = ["<", "{{"];
+
+    for (let i = 0; i < endTokens.length; i++) {
+        const index = context.source.indexOf(endTokens[i]);
+        if (index !== -1 && endIndex > index) {
+            endIndex = index
+        }
+    }
+
+    const content = parseTextData(context, endIndex);
     return {
         type: NodeTypes.TEXT,
         content
@@ -45,22 +84,31 @@ function parseText(context) {
 function parseTextData(context, length) {
     const content = context.source.slice(0, length)
 
-    debugger
     // 删除处理完的内容
     advanceBy(context, length)
     return content;
 }
-function parseElement(context) {
-    const element = parseTag(context, TagType.Start);
+function parseElement(context, ancestors) {
+    const element: any = parseTag(context, TagType.Start);
+    // 在解析children之前 收集 ancestors ，在parseChildren 处理完之后 弹出栈也就是 pop 
+    ancestors.push(element);
+    element.children = parseChildren(context, ancestors);
+    ancestors.pop();
 
-    parseTag(context, TagType.End);
+    if (startsWithEndTagOpen(context.source, element.tag)) {
+        parseTag(context, TagType.End);
+    } else {
+        throw new Error(`缺少结束标签：${element.tag}`)
+    }
+
 
     return element;
 }
 
 function parseTag(context: any, type: TagType) {
     // 1.解析 tag
-    const match: any = /^\/?<([a-z]*)/i.exec(context.source)
+    const match: any = /^<\/?([a-z]*)/i.exec(context.source)
+
     // 获取到标签值 如： div 
     const tag = match[1]
     // 2. 删除处理完的代码
@@ -70,7 +118,7 @@ function parseTag(context: any, type: TagType) {
     if (type === TagType.End) return
     return {
         type: NodeTypes.ELEMENT,
-        tag: "div"
+        tag
     }
 }
 
@@ -111,7 +159,8 @@ function advanceBy(context: any, length: number) {
 function createRoot(children) {
     // createRoot函数 返回children
     return {
-        children
+        children,
+        type: NodeTypes.ROOT
     }
 }
 
