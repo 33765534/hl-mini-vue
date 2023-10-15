@@ -399,8 +399,7 @@ export function createRenderer(options) {
             if (!instance.isMounted) {
                 const { proxy } = instance
                 // 绑定一下代理对象 当我们调用render的时候 把我们的代理对象绑定到 render函数的this上
-                const subTree = (instance.subTree = instance.render.call(proxy))
-
+                const subTree = (instance.subTree = instance.render.call(proxy, proxy))
                 // vnode => patch
                 // vnode => element => mountElement
                 /**
@@ -422,7 +421,7 @@ export function createRenderer(options) {
                 }
 
                 const { proxy } = instance
-                const subTree = instance.render.call(proxy)
+                const subTree = instance.render.call(proxy, proxy)
                 const prevSubTree = instance.subTree
                 // 获取到之前的subTree后 要把当前的赋值给  instance.subTree 这样下次进来就能获取到当前的vnode了
                 instance.subTree = subTree

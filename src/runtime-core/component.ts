@@ -67,10 +67,19 @@ function handleSetupResult(instance, setupResult) {
 
 function finishComponentSetup(instance) {
     const Component = instance.type
-    if (Component.render) {
-        // 赋值到组件实例上
-        instance.render = Component.render
+    if (!Component.render && compiler) {
+        if (Component.template) {
+            instance.render = compiler(Component.template)
+        }
     }
+    // 赋值到组件实例上
+    if(Component.render)instance.render = Component.render
+
+}
+
+let compiler;
+export function registerRuntimeCompiler(_compiler) {
+    compiler = _compiler;
 }
 
 let currentInstance = null

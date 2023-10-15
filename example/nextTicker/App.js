@@ -17,7 +17,6 @@ export const App = {
       }
 
       console.log(instance);
-      debugger;
       nextTick(() => {
         console.log(instance);
       });
