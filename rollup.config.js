@@ -2,18 +2,18 @@
 import typescript from "@rollup/plugin-typescript";
 
 export default {
-  input: "./src/index.ts", // 入口文件
+  input: "./packages/vue/src/index.ts", // 入口文件
   output: [
     // 打包出两个模块规范
     // 1.cjs->commonjs   file: pkg.main,
     // 2.esm  file: pkg.module,
     {
       format: "cjs",
-      file: "lib/guide-mini-vue.cjs.js",
+      file: "packages/vue/dist/guide-mini-vue.cjs.js",
     },
     {
       format: "es",
-      file: "lib/guide-mini-vue.esm.js",
+      file: "packages/vue/dist/guide-mini-vue.esm.js",
     },
   ],
   // 如果用ts写的就需要配置一下plugins,
