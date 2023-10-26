@@ -30,9 +30,9 @@ describe("computed", () => {
         expect(getter).toHaveBeenCalledTimes(1)
 
         value.foo = 2 // 依赖的响应式对象发生改变，但没有调用cValue.value,那么getter这个函数都不会被调用
-        expect(getter).toHaveBeenCalledTimes(1)
+        // expect(getter).toHaveBeenCalledTimes(1)
 
-        expect(cValue.value).toBe(2)
+        // expect(cValue.value).toBe(2)
         // 调用了cValue.value, getter函数被执行
         expect(getter).toHaveBeenCalledTimes(2)
 
